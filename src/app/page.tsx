@@ -1,103 +1,211 @@
-import Image from "next/image";
+'use client';
 
-export default function Home() {
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { WebSocketClientTransport } from '@modelcontextprotocol/sdk/client/websocket.js';
+import * as React from 'react';
+
+import { Button } from '@/common/components/ui/button';
+import { Input } from '@/common/components/ui/input';
+
+const HomePage: React.FC = () => {
+  const [messages, setMessages] = React.useState<string[]>([]);
+  const [newMessage, setNewMessage] = React.useState('');
+  const [connectionStatus, setConnectionStatus] = React.useState<
+    '连接成功' | '连接失败' | '连接中'
+  >('连接中');
+  const tpRef = React.useRef<WebSocketClientTransport | null>(null);
+
+  React.useEffect(() => {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const transport = new WebSocketClientTransport(
+      `${protocol}//${window.location.host}/api/ws` as unknown as URL
+    );
+    tpRef.current = transport;
+
+    transport.onerror = () => {
+      setConnectionStatus('连接失败');
+    };
+
+    transport.onclose = () => {
+      setConnectionStatus('连接失败');
+    };
+
+    transport.onmessage = (msg) => {
+      setMessages((prevMessages) => [...prevMessages, JSON.stringify(msg)]);
+    };
+
+    const client = new Client(
+      {
+        name: 'example-client',
+        version: '1.0.0',
+      },
+      {
+        capabilities: {
+          prompts: {},
+          resources: {},
+          tools: {},
+        },
+      }
+    );
+
+    const connect = async () => {
+      await client.connect(transport);
+      setConnectionStatus('连接成功');
+
+      client.onerror = () => {
+        setConnectionStatus('连接失败');
+      };
+
+      client.onclose = () => {
+        setConnectionStatus('连接失败');
+      };
+
+      // List prompts
+      // const prompts = await client.listPrompts();
+
+      // Get a prompt
+      // const prompt = await client.getPrompt('example-prompt', {
+      //   arg1: 'value',
+      // });
+
+      // List resources
+      // const resources = await client.listResources();
+
+      // const tools = await client.listTools();
+      // console.log("🚀 ~ connect ~ tools:", tools)
+
+      // Read a resource
+      // const resource = await client.readResource('file:///example.txt');
+
+      // Call a tool
+      const result = await client.callTool({
+        name: 'add',
+        arguments: {
+          a: 1,
+          b: 2,
+        },
+      });
+      console.log("🚀 ~ connect ~ result:", result)
+    };
+
+    connect();
+
+    // const pingInterval = setInterval(() => {
+    //   client.
+    //   if (ws.readyState === WebSocket.OPEN) {
+    //     transport.send(JSON.parse(`{"event":"ping"}`));
+    //   }
+    // }, 29000);
+
+    return () => {
+      // clearInterval(pingInterval);
+      if (tpRef.current) {
+        tpRef.current.close();
+      }
+    };
+  }, []);
+
+  // React.useEffect(() => {
+  //   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  //   const ws = new WebSocket(`${protocol}//${window.location.host}/api/ws`);
+  //   wsRef.current = ws;
+
+  //   ws.onopen = () => {
+  //     setConnectionStatus('连接成功');
+  //   };
+
+  //   ws.onclose = () => {
+  //     setConnectionStatus('连接失败');
+  //   };
+
+  //   ws.onmessage = (event) => {
+  //     setMessages((prevMessages) => [...prevMessages, event.data]);
+  //   };
+
+  //   const pingInterval = setInterval(() => {
+  //     if (ws.readyState === WebSocket.OPEN) {
+  //       ws.send(`{"event":"ping"}`);
+  //     }
+  //   }, 29000);
+
+  //   return () => {
+  //     clearInterval(pingInterval);
+  //     if (wsRef.current) {
+  //       wsRef.current.close();
+  //     }
+  //   };
+  // }, []);
+
+  const sendMessage = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!newMessage.trim()) return;
+
+    tpRef.current?.send(JSON.parse(newMessage));
+    setNewMessage('');
+  };
+
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+    <main className="flex min-h-screen items-center justify-center bg-gradient-to-b from-gray-50 to-gray-100">
+      <div className="mx-4 flex h-[80vh] w-full max-w-2xl flex-col rounded-xl border border-gray-200 bg-white shadow-lg">
+        <div
+          className={`rounded-t-xl px-6 py-3 text-sm font-medium ${
+            connectionStatus === '连接成功'
+              ? 'border-b border-green-100 bg-green-50 text-green-700'
+              : connectionStatus === '连接失败'
+                ? 'border-b border-red-100 bg-red-50 text-red-700'
+                : 'border-b border-yellow-100 bg-yellow-50 text-yellow-700'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <div
+              className={`h-2 w-2 rounded-full ${
+                connectionStatus === '连接成功'
+                  ? 'bg-green-500'
+                  : connectionStatus === '连接失败'
+                    ? 'bg-red-500'
+                    : 'bg-yellow-500'
+              }`}
+            ></div>
+            当前状态: {connectionStatus}
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+        <div className="flex-1 space-y-4 overflow-y-auto bg-gray-50 p-6">
+          {messages.map((message, index) => (
+            <div
+              key={index}
+              className="rounded-lg border border-gray-100 bg-white p-4 shadow-sm transition-all hover:shadow-md"
+            >
+              <p className="font-medium text-gray-800">{message}</p>
+            </div>
+          ))}
+        </div>
+        <form
+          onSubmit={sendMessage}
+          className="rounded-b-xl border-t border-gray-100 bg-white p-6"
         >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+          <div className="flex gap-3">
+            <Input
+              type="text"
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              className="h-12 flex-1"
+              placeholder="输入你要传送的消息..."
+            />
+            <Button
+              type="submit"
+              variant={
+                connectionStatus === '连接成功' ? 'default' : 'secondary'
+              }
+              disabled={connectionStatus !== '连接成功'}
+              className="h-12"
+            >
+              发送
+            </Button>
+          </div>
+        </form>
+      </div>
+    </main>
   );
-}
+};
+
+export default HomePage;
