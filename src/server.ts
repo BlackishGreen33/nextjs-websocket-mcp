@@ -1,4 +1,8 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { Server as McpServer } from '@modelcontextprotocol/sdk/server/index.js';
+import {
+  CallToolRequestSchema,
+  ListToolsRequestSchema,
+} from '@modelcontextprotocol/sdk/types.js';
 import next from 'next';
 import {
   createServer,
@@ -8,25 +12,47 @@ import {
 } from 'node:http';
 import { Socket } from 'node:net';
 import { parse } from 'node:url';
-import { z } from 'zod';
 
+import TOOL_DEFINITIONS from './common/constants/tool-definitions';
 import { WebSocketServerTransport } from './common/libs/websocket-server-transport';
-// import { WebSocket, WebSocketServer } from 'ws';
+import toolHandlers from './common/utils/toolHandlers';
 
 const nextApp = next({ dev: process.env.NODE_ENV !== 'production' });
 const handle = nextApp.getRequestHandler();
-// const clients: Set<WebSocket> = new Set();
 
-const mcpServer = new McpServer({
-  name: 'example-server',
-  version: '1.0.0',
+const mcpServer = new McpServer(
+  {
+    name: 'example-server',
+    version: '1.0.0',
+  },
+  {
+    capabilities: {
+      tools: {},
+    },
+  }
+);
+
+mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
+  console.log('Tools requested by client');
+  console.log('Returning tools:', JSON.stringify(TOOL_DEFINITIONS, null, 2));
+  return { tools: TOOL_DEFINITIONS };
 });
 
-mcpServer.tool('add', { a: z.number(), b: z.number() }, async ({ a, b }) => ({
-  content: [{ type: 'text', text: String(a + b) }],
-}));
+mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
+  const { name, arguments: args } = request.params;
 
+  try {
+    const handler = toolHandlers[name as keyof typeof toolHandlers];
+    if (!handler) {
+      throw new Error(`Unknown tool: ${name}`);
+    }
 
+    return await handler(args);
+  } catch (error) {
+    console.error(`Error executing tool ${name}:`, error);
+    throw error;
+  }
+});
 
 nextApp.prepare().then(() => {
   const server: Server = createServer(
@@ -34,30 +60,6 @@ nextApp.prepare().then(() => {
       handle(req, res, parse(req.url || '', true));
     }
   );
-
-  // const wss = new WebSocketServer({ noServer: true });
-
-  // wss.on('connection', (ws: WebSocket) => {
-  //   clients.add(ws);
-  //   console.log('New client connected');
-
-  //   ws.on('message', (message: Buffer, isBinary: boolean) => {
-  //     console.log(`Message received: ${message}`);
-  //     clients.forEach((client) => {
-  //       if (
-  //         client.readyState === WebSocket.OPEN &&
-  //         message.toString() !== `{"event":"ping"}`
-  //       ) {
-  //         client.send(message, { binary: isBinary });
-  //       }
-  //     });
-  //   });
-
-  //   ws.on('close', () => {
-  //     clients.delete(ws);
-  //     console.log('Client disconnected');
-  //   });
-  // });
 
   server.on(
     'upgrade',
@@ -69,9 +71,6 @@ nextApp.prepare().then(() => {
       }
 
       if (pathname === '/api/ws') {
-        // wss.handleUpgrade(req, socket, head, (ws) => {
-        //   wss.emit('connection', ws, req);
-        // });
         const transport = new WebSocketServerTransport(req, socket, head);
         await mcpServer.connect(transport);
       }

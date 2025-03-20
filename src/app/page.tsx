@@ -7,6 +7,20 @@ import * as React from 'react';
 import { Button } from '@/common/components/ui/button';
 import { Input } from '@/common/components/ui/input';
 
+const client = new Client(
+  {
+    name: 'example-client',
+    version: '1.0.0',
+  },
+  {
+    capabilities: {
+      prompts: {},
+      resources: {},
+      tools: {},
+    },
+  }
+);
+
 const HomePage: React.FC = () => {
   const [messages, setMessages] = React.useState<string[]>([]);
   const [newMessage, setNewMessage] = React.useState('');
@@ -30,24 +44,6 @@ const HomePage: React.FC = () => {
       setConnectionStatus('连接失败');
     };
 
-    transport.onmessage = (msg) => {
-      setMessages((prevMessages) => [...prevMessages, JSON.stringify(msg)]);
-    };
-
-    const client = new Client(
-      {
-        name: 'example-client',
-        version: '1.0.0',
-      },
-      {
-        capabilities: {
-          prompts: {},
-          resources: {},
-          tools: {},
-        },
-      }
-    );
-
     const connect = async () => {
       await client.connect(transport);
       setConnectionStatus('连接成功');
@@ -60,87 +56,37 @@ const HomePage: React.FC = () => {
         setConnectionStatus('连接失败');
       };
 
-      // List prompts
-      // const prompts = await client.listPrompts();
-
-      // Get a prompt
-      // const prompt = await client.getPrompt('example-prompt', {
-      //   arg1: 'value',
-      // });
-
-      // List resources
-      // const resources = await client.listResources();
-
-      // const tools = await client.listTools();
-      // console.log("🚀 ~ connect ~ tools:", tools)
-
-      // Read a resource
-      // const resource = await client.readResource('file:///example.txt');
-
-      // Call a tool
-      const result = await client.callTool({
-        name: 'add',
-        arguments: {
-          a: 1,
-          b: 2,
-        },
+      const toolsResult = await client.listTools();
+      const tools = toolsResult.tools.map((tool) => {
+        return {
+          name: tool.name,
+          description: tool.description,
+          input_schema: tool.inputSchema,
+        };
       });
-      console.log("🚀 ~ connect ~ result:", result)
+      console.log('🚀 ~ connect ~ tools:', tools);
     };
 
     connect();
 
-    // const pingInterval = setInterval(() => {
-    //   client.
-    //   if (ws.readyState === WebSocket.OPEN) {
-    //     transport.send(JSON.parse(`{"event":"ping"}`));
-    //   }
-    // }, 29000);
-
     return () => {
-      // clearInterval(pingInterval);
       if (tpRef.current) {
         tpRef.current.close();
       }
     };
   }, []);
 
-  // React.useEffect(() => {
-  //   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  //   const ws = new WebSocket(`${protocol}//${window.location.host}/api/ws`);
-  //   wsRef.current = ws;
-
-  //   ws.onopen = () => {
-  //     setConnectionStatus('连接成功');
-  //   };
-
-  //   ws.onclose = () => {
-  //     setConnectionStatus('连接失败');
-  //   };
-
-  //   ws.onmessage = (event) => {
-  //     setMessages((prevMessages) => [...prevMessages, event.data]);
-  //   };
-
-  //   const pingInterval = setInterval(() => {
-  //     if (ws.readyState === WebSocket.OPEN) {
-  //       ws.send(`{"event":"ping"}`);
-  //     }
-  //   }, 29000);
-
-  //   return () => {
-  //     clearInterval(pingInterval);
-  //     if (wsRef.current) {
-  //       wsRef.current.close();
-  //     }
-  //   };
-  // }, []);
-
-  const sendMessage = (e: React.FormEvent<HTMLFormElement>) => {
+  const sendMessage = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
 
-    tpRef.current?.send(JSON.parse(newMessage));
+    const result = await client.callTool({
+      name: 'send_message_to_server',
+      arguments: {
+        content: newMessage,
+      },
+    });
+    setMessages((prevMessages) => [...prevMessages, JSON.stringify(result.content)]);
     setNewMessage('');
   };
 
