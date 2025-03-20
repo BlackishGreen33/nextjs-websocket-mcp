@@ -1,7 +1,8 @@
+/* eslint-disable simple-import-sort/imports */
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 
-import '@/common/styles/globals.css';
+import '@/common/styles/globals.scss';
 
 import QueryProvider from '@/common/components/providers/QueryProvider';
 
